@@ -1,0 +1,69 @@
+#Ansible2_Task2_Install_Package
+- name: Install package
+  hosts: all
+  become: true
+  tasks:
+    - name: Install package
+      yum:
+        name: chrony 
+        state: present 
+---
+# Ansible2_Task3_Create_and_copy_archive
+- name: Create and copy archive 
+  hosts: all 
+  become: true
+  tasks:
+    - name: CreateAndCopy 
+      archive:
+        path: /usr/src/security/
+        dest: /opt/security/demo.tar.gz
+        format: gz
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+---
+# Ansible2_Task4_Unarchive_file
+- name: Unarchive and copy 
+  hosts: all
+  become: true
+  tasks: 
+    - name: Unarchive and copy
+      unarchive:
+        src: /usr/src/data/nautilus.zip
+        dest: /opt/data/
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0755"
+---
+# Ansible2_Task5_InstallPackage_AddBlockInFile
+- name: Install Package and Add BlockInfile 
+  hosts: all
+  become: true
+  tasks:
+    - name: Install package
+      yum: 
+        name: httpd
+        state: present
+    - name: Start a service
+      service: 
+        name: httpd
+        state: started 
+        enabled: true
+    - name: Add content to index.html
+      blockinfile: 
+        path: /var/www/html/index.html
+        block: |
+          Welcome to XfusionCorp!
+
+          This is  Nautilus sample file, created using Ansible!
+
+          Please do not modify this file manually!
+        create: yes
+    - name: Set file owner and group 
+      file:
+        path: /var/www/html/index.html
+        owner: apache
+        group: apache
+    - name: Set file permission 
+      file: 
+        path: /var/www/html/index.html
+        mode: "0755"
