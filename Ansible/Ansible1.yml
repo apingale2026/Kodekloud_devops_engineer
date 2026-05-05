@@ -1,0 +1,54 @@
+---
+# Ansible1_Task1_Create_empty_file
+- name: Create empty file
+  hosts: stapp03
+  become: true
+  tasks:
+    - name: Create file
+      file:
+        path: /tmp/file.txt
+        state: touch
+---
+# Ansible1_Task2_Install_and_start_httpd
+- hosts: all
+  become: yes
+  become_user: root
+  tasks:
+    - name: Install httpd package    
+      yum: 
+        name: httpd 
+        state: installed
+    
+    - name: Start service httpd
+      service:
+        name: httpd
+        state: started
+# Inventory
+stapp03 ansible_host=10.244.247.201 ansible_ssh_pass=BigGr33n
+---
+# Ansible1_Task4_Copy_file_fromJumpHost_to_app_servers
+- name: Copy files 
+  hosts: all
+  become: true
+  tasks:
+    - name: copy files from Jump host to app servers 
+      copy:
+        src: /usr/src/devops/index.html
+        dest: /opt/devops
+# Inventory 
+stapp03 ansible_host=10.244.97.162 ansible_ssh_pass=BigGr33n ansible_user=banner ansible_connection=ssh
+stapp02 ansible_host=10.244.29.218 ansible_ssh_pass=Am3ric@ ansible_user=steve ansible_connection=ssh
+stapp01 anisble_host=10.244.49.91 ansible_ssh_pass=Ir0nM@n ansible_user=tony ansible_connection=ssh
+---
+# Ansible1_Task5_Create_empty_file_with_user_and_group_owner_file_permission
+- name: Create empty file 
+  hosts: all
+  become: true
+  tasks:
+    - name: Create empty file
+      file:
+        path: /home/data.txt
+        state: touch 
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0744"
