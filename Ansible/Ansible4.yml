@@ -1,0 +1,155 @@
+# Ansible4_Task1_Gathering_Facts
+- name: Facts_Gathering 
+  hosts: all 
+  become: true
+  gather_facts: true
+  tasks: 
+    - name: Create facts.txt using blockinfile 
+      blockinfile:
+        create: yes
+        path: /root/facts.txt
+        block: |
+          Ansible managed node architecture is {{ ansible_architecture }}
+    - name: Install httpd package
+      yum: 
+        name: httpd
+        state: present 
+    - name: Copy facts.txt to /var/www/html/index.html
+      copy: 
+        src: /root/facts.txt
+        dest: /var/www/html/index.html
+        remote_src: yes
+    - name: Start a service
+      service:
+        name: httpd
+        state: started 
+--- 
+#Ansible4_Task2_Create_user_group
+- name: Create user on App Server2 
+  hosts: stapp02
+  become: true
+  tasks: 
+    - name: Create group developer
+      group: 
+        name: developers
+        state: present 
+    - name: Create admin group 
+      group : 
+        name: admins 
+        state: present 
+    - name: Create users of admin group 
+      user: 
+        name: "{{ item }}"
+        groups: admins,wheel 
+        password: "{{ 'Rc5C9EyvbU' | password_hash('sha512') }}"
+        state: present
+      loop:
+        - rob
+        - david
+        - joy
+    - name: Create users of developers group 
+      user: 
+        name: "{{ item }}"
+        groups: developers
+        password: "{{ 'TmPcZjtRQx' | password_hash('sha512') }}"
+        home: /var/www
+        state: present
+      loop:
+        - tim
+        - ray
+        - jim
+        - mark
+---
+#Ansible4_Task3_Template
+#playbook.yml 
+- name: Create template for httpd
+  hosts: all 
+  become: true
+  become_user: root
+  roles:
+    - role/httpd
+#cat index.html.j2 
+This file was created using Ansible on {{ inventory_hostname }}
+#/home/thor/ansible/role/httpd/tasks/main.yml
+- name: install the latest version of HTTPD
+  yum:
+    name: httpd
+    state: present 
+- name: start the service 
+  service: 
+    name: httpd
+    state: started 
+- name: Add index.html 
+  template: 
+    src: /home/thor/ansible/role/httpd/templates/index.html.j2
+    dest: /var/www/html/index.html
+    mode: '0744'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  become: true
+  become_user: root 
+
+---
+#Ansible4_Task4_setup_http_php
+- name: Setup http and php 
+  hosts: all 
+  become: true
+  tasks: 
+    - name: Install http and php package 
+      yum: 
+        name: 
+          - httpd
+          - php 
+        state: present 
+    - name: Replace documentroot directory 
+      replace: 
+        path: /etc/httpd/conf/httpd.conf
+        regexp: DocumentRoot \"\/var\/www\/html\"
+        replace: DocumentRoot "/var/www/html/myroot"
+    - name: Create directory
+      file:
+        path: /var/www/html/myroot
+        state: directory 
+        owner: apache
+        group: apache
+    - name: copy template to phpinfo.php
+      template: 
+        src: ~/playbooks/templates/phpinfo.php.j2
+        dest: /var/www/html/myroot/phpinfo.php
+        owner: apache
+        group: apache 
+    - name: start apache service
+      service: 
+        name: httpd
+        state: started 
+        enabled: yes 
+---
+#Ansible4_Task5_Use_Condition
+- name: Use Condition 
+  hosts: all 
+  become: true
+  tasks:
+    - name: copy file to Appserver1
+      copy:
+        src: /usr/src/data/blog.txt
+        dest: /opt/data
+        owner: tony
+        group: tony
+        mode: "0744"
+      when: ansible_nodename == "stapp01"
+    - name: copy file to Appserver2
+      copy:
+        src: /usr/src/data/story.txt
+        dest: /opt/data
+        owner: steve
+        group: steve
+        mode: "0744"
+      when: ansible_nodename == "stapp02"
+    - name: copy file to Appserver3
+      copy:
+        src: /usr/src/data/media.txt
+        dest: /opt/data
+        owner: banner
+        group: banner
+        mode: "0744"
+      when: ansible_nodename == "stapp03"
