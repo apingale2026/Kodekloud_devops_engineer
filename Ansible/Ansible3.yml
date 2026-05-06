@@ -1,0 +1,167 @@
+# Ansible3_Task1_Create_Symbolic_Link
+- name: Create Symbolic Link on Appserver1
+  hosts: stapp01
+  become: true
+  tasks:
+    - name: Create empty file
+      file:
+        path: /opt/finance/blog.txt
+        state: touch 
+        owner: tony 
+        group: tony 
+    - name: Create Symlink 
+      file: 
+        state: link 
+        src: /opt/finance
+        dest: /var/www/html
+- name: Create Symbolic Link on Appserver2
+  hosts: stapp02
+  become: true
+  tasks:
+    - name: Create empty file
+      file:
+        path: /opt/finance/story.txt
+        state: touch 
+        owner: steve
+        group: steve
+    - name: Create Symlink 
+      file: 
+        state: link 
+        src: /opt/finance
+        dest: /var/www/html
+- name: Create Symbolic Link on Appserver3
+  hosts: stapp03
+  become: true
+  tasks:
+    - name: Create empty file
+      file:
+        path: /opt/finance/media.txt
+        state: touch 
+        owner: banner
+        group: banner 
+    - name: Create Symlink 
+      file: 
+        state: link 
+        src: /opt/finance
+        dest: /var/www/html  
+---
+#Ansible3_Task2_Create_ACL
+- name: Create empty file and set acl on Appserver1
+  hosts: stapp01
+  become: true
+  tasks: 
+    - name: Create an empty file
+      file:
+        path: /opt/data/blog.txt
+        state: touch 
+    - name: Set acl 
+      acl: 
+        path: /opt/data/blog.txt
+        entity: tony
+        etype: group 
+        permissions: r
+        state: present 
+- name: Create empty file and set acl on Appserver2
+  hosts: stapp02
+  become: true
+  tasks: 
+    - name: Create an empty file
+      file:
+        path: /opt/data/story.txt
+        state: touch 
+    - name: Set acl 
+      acl: 
+        path: /opt/data/story.txt
+        entity: steve
+        etype: user 
+        permissions: rw
+        state: present 
+- name: Create empty file and set acl on Appserver3
+  hosts: stapp03
+  become: true
+  tasks: 
+    - name: Create an empty file
+      file:
+        path: /opt/data/media.txt
+        state: touch 
+    - name: Set acl 
+      acl: 
+        path: /opt/data/media.txt
+        entity: banner
+        etype: group 
+        permissions: rw
+        state: present 
+---
+#Ansible3_Task3_Install_Package
+- name: Install package and start service 
+  hosts: all 
+  become: yes 
+  tasks: 
+    - name: Install package
+      yum: 
+        name: httpd
+        state: present 
+    - name: Start and Enable service
+      service:
+        name: httpd
+        state: started 
+        enabled: true
+--- 
+# Ansible3_Task4_LineInFile
+- name: Install package and start service 
+  hosts: all 
+  become: yes 
+  tasks: 
+    - name: Install package
+      yum: 
+        name: httpd
+        state: present 
+    - name: Start and Enable service
+      service:
+        name: httpd
+        state: started 
+        enabled: true
+    - name: copy content 
+      copy: 
+        dest: /var/www/html/index.html
+        content: |
+          This is a Nautilus sample file, created using Ansible!
+        create: yes
+        owner: apache
+        group: apache
+        mode: "0644"
+    - name: Add line at start 
+      lineinfile: 
+        path: /var/www/html/index.html
+        line: Welcome to xFusionCorp Industries!
+        insertbefore: BOF # Beginning of file
+---
+# Ansible3_Task5_Replace_words_from_file
+- name: Replace word on Appserver1
+  hosts: stapp01
+  become: true
+  tasks: 
+    - name: Replace word
+      replace: 
+        path: /opt/devops/blog.txt
+        regexp: "xFusionCorp"
+        replace: "Nautilus"
+- name: Replace word on Appserver2
+  hosts: stapp02
+  become: true
+  tasks: 
+    - name: Replace word
+      replace: 
+        path: /opt/devops/story.txt
+        regexp: "Nautilus"
+        replace: "KodeKloud"
+- name: Replace word on Appserver3
+  hosts: stapp03
+  become: true
+  tasks: 
+    - name: Replace word
+      replace: 
+        path: /opt/devops/media.txt
+        regexp: "KodeKloud"
+        replace: "xFusionCorp"
+    
