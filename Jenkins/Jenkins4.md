@@ -1,4 +1,4 @@
-# Jenkins5_Task2_DownStream_Project
+# Jenkins4_Task2_DownStream_Project
 1. Create two project make manage_services as downstream project for devops project
 devops_project
 ssh -o StrictHostKeyChecking=no sarah@stapp01 "
@@ -9,7 +9,7 @@ ssh -o StrictHostKeyChecking=no sarah@stapp01 "
 sudo systemctl restart httpd
 "
 
-# Jenkins5_Task3_Create_pipeline_with_two_stages
+# Jenkins4_Task3_Create_pipeline_with_two_stages
 ```bash
 pipeline {
     agent {
