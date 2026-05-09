@@ -67,4 +67,35 @@ pipeline {
 }
 ```
 
+# Jenkins4_Task5_Node_App
+```bash
+pipeline {
+    agent {
+        label 'stapp01'
+    }
+
+    stages {
+        stage('Build') {
+            steps {
+                git credentialsId: 'sarah-gitea', url: 'https://3000-port-spkyizr6p6quo2ig.labs.kodekloud.com/sarah/web.git', branch: 'master'
+                 sh '''
+                docker build -t stregi01.stratos.xfusioncorp.com:5000/node-app:latest .
+                docker push stregi01.stratos.xfusioncorp.com:5000/node-app:latest
+                '''
+                
+            }
+        }
+        stage('Deploy') {
+            steps {
+                sh '''
+                docker rm -f node-app || true
+                docker run -d --name node-app -p 8080:8080 stregi01.stratos.xfusioncorp.com:5000/node-app:latest
+                '''
+            }
+        }
+    }
+}
+```
+
+
 
