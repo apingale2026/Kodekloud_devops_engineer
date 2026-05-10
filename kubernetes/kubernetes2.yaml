@@ -1,0 +1,314 @@
+# Kubernetes2_Task1_Shared_Volume
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: volume-share-datacenter
+  name: volume-share-datacenter
+spec:
+  containers:
+  - image: fedora:latest
+    name: volume-container-datacenter-1
+    command: ["sleep", "3600"]
+    volumeMounts:
+      - name: volume-share
+        mountPath: /tmp/beta
+  - image: fedora:latest
+    name: volume-container-datacenter-2
+    command: ["sleep", "3600"]
+    volumeMounts:
+      - name: volume-share
+        mountPath: /tmp/demo
+  volumes: 
+  - name: volume-share
+    emptyDir: {}
+
+
+# Kubernetes2_Task2_Sidecar_Container
+apiVersion: v1
+kind: Pod
+metadata:
+  name: webserver
+spec:
+  volumes:
+  - name: shared-logs
+    emptyDir: {}
+  initContainers:
+  - name: sidecar-container        # declared as initContainer
+    image: ubuntu:latest
+    restartPolicy: Always           # ← this makes it a native sidecar (K8s 1.29+)
+    command:
+    - "sh"
+    - "-c"
+    - "while true; do cat /var/log/nginx/access.log /var/log/nginx/error.log; sleep 30; done"
+    volumeMounts:
+    - name: shared-logs
+      mountPath: /var/log/nginx
+  containers:
+  - name: nginx-container
+    image: nginx:latest
+    volumeMounts:
+    - name: shared-logs
+      mountPath: /var/log/nginx
+
+# Kubernetes2_Task3_
+dep.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: nginx-deployment
+  name: nginx-deployment
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx-deployment
+  template:
+    metadata:
+      labels:
+        app: nginx-deployment
+    spec:
+      containers:
+      - image: nginx:latest
+        name: nginx-container
+svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: nginx-deployment
+  name: nginx-service
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 80
+    nodePort: 30011
+  selector:
+    app: nginx-deployment
+  type: NodePort
+
+# Kubernetes2_Task4_Print_Env_Variable
+apiVersion: v1
+kind: Pod
+metadata:
+  name: print-envars-greeting
+spec:
+  restartPolicy: Never
+  containers:
+  - image: bash
+    name: print-env-container
+    env: 
+    - name: GREETING
+      value: "Welcome to"
+    - name: COMPANY
+      value: "xFusionCorp"
+    - name: GROUP
+      value: "Datacenter"
+    command: ["/bin/sh", "-c", 'echo "$(GREETING) $(COMPANY) $(GROUP)"']
+      
+# Kubernetes2_Task5_Rolling_Update_Roll_Back
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: httpd-deploy
+  namespace: xfusion
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: httpd-deploy
+  strategy: 
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 2 
+  template:
+    metadata:
+      labels:
+        app: httpd-deploy
+    spec:
+      containers:
+      - image: httpd:2.4.25
+        name: httpd
+        
+svc.yaml 
+apiVersion: v1
+kind: Service
+metadata:
+  name: httpd-service
+  namespace: xfusion
+spec:
+  ports:
+  - nodePort: 30008
+    port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    app: httpd-deploy
+  type: NodePort
+  
+Upgrading Image 
+#kubectl -n xfusion set image deployments httpd-deploy httpd=httpd:2.4.43
+
+Check rollout status
+#kubectl rollout status deployment/httpd-deploy -n xfusion
+#kubectl rollout history deployment/httpd-deploy -n xfusion
+
+Rollout Undo 
+#kubectl rollout undo deployment/httpd-deploy -n xfusion
+
+# Kubernetes2_Task6_Deploy_Jenkins
+svc.yaml 
+apiVersion: v1
+kind: Service
+metadata:
+  name: jenkins-service
+  namespace: jenkins
+spec:
+  ports:
+  - nodePort: 30008
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: jenkins
+  type: NodePort
+
+dep.yaml 
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jenkins-deployment
+  namespace: jenkins
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jenkins
+  template:
+    metadata:
+      labels:
+        app: jenkins
+    spec:
+      containers:
+      - image: jenkins/jenkins
+        name: jenkins-container
+        ports: 
+        - containerPort: 8080
+
+# kubernetes2_Task7_Deploy_Grafana
+dep.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: grafana-deployment-xfusion
+  name: grafana-deployment-xfusion
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana-deployment-xfusion
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: grafana-deployment-xfusion
+    spec:
+      containers:
+      - image: grafana/grafana:latest
+        name: grafana
+        ports:
+        - containerPort: 3000
+svc.yaml 
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: grafana-deployment-xfusion
+  name: grafana-svc
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 3000
+    nodePort: 32000
+  selector:
+    app: grafana-deployment-xfusion
+  type: NodePort
+status:
+  loadBalancer: {}
+
+# Kubernetes2_Task8_Deploy_Tomcat
+dep.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: tomcat-deployment-devops
+  name: tomcat-deployment-devops
+  namespace: tomcat-namespace-devops
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tomcat-deployment-devops
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: tomcat-deployment-devops
+    spec:
+      containers:
+      - image: kodekloud/centos-ssh-enabled:tomcat
+        name: tomcat-container-devops
+        ports:
+        - containerPort: 8080
+
+svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: tomcat-deployment-devops
+  name: tomcat-service-devops
+  namespace: tomcat-namespace-devops
+spec:
+  ports:
+  - port: 8080
+    protocol: TCP
+    targetPort: 8080
+    nodePort: 32227
+  selector:
+    app: grafana-deployment-xfusion
+  type: NodePort
+
+# Kubernetes2_Task9_Deploy_Node_App
+kubectl create deployment node-deploy --image=kodekloud/centos-ssh-enabled:node --replicas 2
+svc.yaml 
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: node-deploy
+  name: nodeapp-svc
+spec:
+  ports:
+  - port: 8080
+    protocol: TCP
+    targetPort: 8080
+    nodePort: 30012
+  selector:
+    app: node-deploy
+  type: NodePort
+
+# kubernetes2_Task10_Troubleshoot
+1. Change name of configMap 
+2. Correct the image name 
+ 
+# Kubernetes2_Task11_Troubleshoot 
+1. Change the nodeport to 30008 
+2. check both service status
+3. exec into httpd-php container check app/index.php , correct typo of env variable 
