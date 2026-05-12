@@ -1,0 +1,574 @@
+# Kubernetes3_Task1_Deploy_Apache_Web_server
+#kubectl create ns httpd-namespace-nautilus
+#kubectl -n httpd-namespace-nautilus create deployment httpd-deployment-nautilus --image=httpd:latest --replicas 2
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: httpd-deployment-nautilus
+  name: httpd-service-nautilus
+  namespace: httpd-namespace-nautilus
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 80
+    nodePort: 30004
+  selector:
+    app: httpd-deployment-nautilus
+  type: NodePort
+
+# kubernetes3_Task2_Deploy_LAMP_Stack
+cm.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: php-config
+data:
+  php.ini: |
+    variables_order = "EGPCS"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: lamp-wp
+  name: lamp-wp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lamp-wp
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: lamp-wp
+    spec:
+      containers:
+      - image: webdevops/php-apache:alpine-3-php7
+        name: httpd-php-container
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: php-ini 
+          mountPath: /opt/docker/etc/php/php.ini
+          subPath: php.ini
+        env: 
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom: 
+            secretKeyRef:
+              name: mysql-root-pass 
+              key: password 
+        - name: MYSQL_DATABASE
+          valueFrom: 
+            secretKeyRef:
+              name: mysql-db-url 
+              key: database
+        - name: MYSQL_USER
+          valueFrom: 
+            secretKeyRef:
+              name: mysql-user-pass 
+              key: username
+        - name: MYSQL_PASSWORD
+          valueFrom: 
+            secretKeyRef:
+              name: mysql-user-pass 
+              key: password
+        - name: MYSQL_HOST
+          valueFrom: 
+            secretKeyRef:
+              name: mysql-host 
+              key: host
+      - image: mysql:5.6
+        name: mysql-container
+        ports:
+        - containerPort: 3306
+        volumeMounts:
+        - name: php-ini 
+          mountPath: /opt/docker/etc/php/php.ini
+          subPath: php.ini
+        env: 
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom: 
+            secretKeyRef:
+              name: mysql-root-pass 
+              key: password 
+        - name: MYSQL_DATABASE
+          valueFrom: 
+            secretKeyRef:
+              name: mysql-db-url 
+              key: database
+        - name: MYSQL_USER
+          valueFrom: 
+            secretKeyRef:
+              name: mysql-user-pass 
+              key: username
+        - name: MYSQL_PASSWORD
+          valueFrom: 
+            secretKeyRef:
+              name: mysql-user-pass 
+              key: password
+        - name: MYSQL_HOST
+          valueFrom: 
+            secretKeyRef:
+              name: mysql-host 
+              key: host  
+      volumes: 
+      - name: php-ini
+        configMap:
+          name: php-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lamp-service
+spec:
+  type: NodePort
+  selector:
+    app: lamp-wp
+  ports:
+  - port: 80
+    targetPort: 80
+    nodePort: 30008
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-service
+spec:
+  selector:
+    app: lamp-wp
+  ports:
+  - port: 3306
+    targetPort: 3306
+
+edit /tmp/index.php 
+<?php
+$dbname = $_ENV["MYSQL_DATABASE"];
+$dbuser = $_ENV["MYSQL_USER"];
+$dbpass = $_ENV["MYSQL_PASSWORD"];
+$dbhost = $_ENV["MYSQL_HOST"];
+
+$connect = mysqli_connect($dbhost, $dbuser, $dbpass) or die("Unable to Connect to '$dbhost'");
+
+$test_query = "SHOW TABLES FROM $dbname";
+$result = mysqli_query($test_query);
+
+if ($result->connect_error) {
+   die("Connection failed: " . $conn->connect_error);
+}
+  echo "Connected successfully";
+
+copy file to container 
+kubectl cp /tmp/index.php lamp-wp-8o8097fa6j-9drfg:/app -c httpd-php-container
+
+# Kubernetes3_Task3_Init_Container
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: ic-devops
+  name: ic-deploy-devops
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ic-devops
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: ic-devops
+    spec:
+      initContainers:
+      - image: debian:latest
+        name: ic-msg-devops
+        command: ["/bin/bash", "-c", "echo 'Init Done - Welcome to xFusionCorp Industries' > /ic/beta"]
+        volumeMounts:
+        - name: ic-volume-devops
+          mountPath: /ic
+      containers:
+      - image: debian:latest
+        name: ic-main-devops
+        command: ["/bin/bash", "-c", "while true; do cat /ic/beta; sleep 5; done"]
+        volumeMounts:
+        - name: ic-volume-devops
+          mountPath: /ic
+      volumes:
+      - name: ic-volume-devops
+        emptyDir: {}
+
+# Kubernetes3_Task4_Persistent_Volume
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-xfusion
+spec:
+  capacity:
+    storage: 3Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: manual
+  hostPath:
+    path: /mnt/devops
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-xfusion
+spec:
+  accessModes:
+    - ReadWriteOnce
+  volumeMode: Filesystem
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: manual
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: pod-xfusion
+  name: pod-xfusion
+spec:
+  containers:
+  - image: httpd:latest
+    name: container-xfusion
+    volumeMounts:
+    - name: pv-vol 
+      mountPath: /var/www/html
+  volumes:
+  - name: pv-vol
+    persistentVolumeClaim:
+      claimName: pvc-xfusion
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    run: pod-xfusion
+  name: web-xfusion
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 80
+    nodePort: 30008
+  selector:
+    run: pod-xfusion
+  type: NodePort
+
+# Kubernetes3_Task5_Secret
+kubectl create secret generic media --from-file=password=/opt/media.txt
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: secret-devops
+  name: secret-devops
+spec:
+  containers:
+  - image: fedora:latest
+    name: secret-container-devops
+    command: ["sleep", "3600"]
+    volumeMounts:
+    - name: sec-vol
+      mountPath: /opt/cluster
+  volumes:
+  - name: sec-vol
+    secret:
+      secretName: media
+
+# Kubernetes3_Task6_Environment_Variable_Field_Reference
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: envars
+  name: envars
+spec:
+  containers:
+  - image: httpd:latest
+    name: fieldref-container
+    command: ["sh", "-c"]
+    args:
+      - while true; do
+          echo '';
+          printenv NODE_NAME POD_NAME;
+          printenv POD_IP POD_SERVICE_ACCOUNT;
+          sleep 10;
+        done;
+    env:
+    - name: NODE_NAME
+      valueFrom:
+        fieldref:
+          fieldPath: spec.nodeName
+    - name: POD_NAME
+      valueFrom:
+        fieldref:
+          fieldPath: metadata.name
+    - name: POD_IP
+      valueFrom:
+        fieldref:
+          fieldPath: status.podIP
+    - name: POD_SERVICE_ACCOUNT
+      valueFrom:
+        fieldref:
+          fieldPath: spec.serviceAccountName
+  restartPolicy: Always
+
+# kubernetes3_Task7_LEMP
+kubectl create secret generic mysql-root-pass --from-literal=password=R00t
+kubectl create secret generic mysql-user-pass --from-literal=username=kodekloud_sam --from-literal=password=GyQkFRVNr3
+kubectl create secret generic mysql-db-url  --from-literal=database=kodekloud_db10
+kubectl create secret generic mysql-host --from-literal=host=127.0.0.1
+spec.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: php-config
+data:
+  php.ini: |
+    variables_order = "EGPCS"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: lemp-wp
+  name: lemp-wp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lemp-wp
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: lemp-wp
+    spec:
+      containers:
+      - image: webdevops/php-nginx:alpine-3-php7
+        name: nginx-php-container
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: php-ini 
+          mountPath: /opt/docker/etc/php/php.ini
+          subPath: php.ini
+        env: 
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom: 
+            secretKeyRef:
+              name: mysql-root-pass 
+              key: password 
+        - name: MYSQL_DATABASE
+          valueFrom: 
+            secretKeyRef:
+              name: mysql-db-url 
+              key: database
+        - name: MYSQL_USER
+          valueFrom: 
+            secretKeyRef:
+              name: mysql-user-pass 
+              key: username
+        - name: MYSQL_PASSWORD
+          valueFrom: 
+            secretKeyRef:
+              name: mysql-user-pass 
+              key: password
+        - name: MYSQL_HOST
+          valueFrom: 
+            secretKeyRef:
+              name: mysql-host 
+              key: host
+      - image: mysql:5.6
+        name: mysql-container
+        ports:
+        - containerPort: 3306
+        env: 
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom: 
+            secretKeyRef:
+              name: mysql-root-pass 
+              key: password 
+        - name: MYSQL_DATABASE
+          valueFrom: 
+            secretKeyRef:
+              name: mysql-db-url 
+              key: database
+        - name: MYSQL_USER
+          valueFrom: 
+            secretKeyRef:
+              name: mysql-user-pass 
+              key: username
+        - name: MYSQL_PASSWORD
+          valueFrom: 
+            secretKeyRef:
+              name: mysql-user-pass 
+              key: password
+        - name: MYSQL_HOST
+          valueFrom: 
+            secretKeyRef:
+              name: mysql-host 
+              key: host  
+      volumes: 
+      - name: php-ini
+        configMap:
+          name: php-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lemp-service
+spec:
+  type: NodePort
+  selector:
+    app: lemp-wp
+  ports:
+  - port: 80
+    targetPort: 80
+    nodePort: 30008
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-service
+spec:
+  selector:
+    app: lemp-wp
+  ports:
+  - port: 3306
+    targetPort: 3306
+edit /tmp/index.php
+<?php
+$dbname = $_ENV["MYSQL_DATABASE"];
+$dbuser = $_ENV["MYSQL_USER"];
+$dbpass = $_ENV["MYSQL_PASSWORD"];
+$dbhost = $_ENV["MYSQL_HOST"];
+
+$connect = mysqli_connect($dbhost, $dbuser, $dbpass) or die("Unable to Connect to '$dbhost'");
+
+$test_query = "SHOW TABLES FROM $dbname";
+$result = mysqli_query($test_query);
+
+if ($result->connect_error) {
+   die("Connection failed: " . $conn->connect_error);
+}
+  echo "Connected successfully";
+---
+# Kubernetes3_Task8_Troubleshooting 
+
+1.Check apiVersion
+2.Check Indentation 
+3.Check size in pvc 
+4.Check case sensitivity of field 
+
+---
+# Kuberenetes3_Task9_Deploy_App
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    run: iron-gallery
+  name: iron-gallery-deployment-xfusion
+  namespace: iron-namespace-xfusion
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      run: iron-gallery
+  template:
+    metadata:
+      labels:
+        run: iron-gallery
+    spec:
+      containers:
+      - image: kodekloud/irongallery:2.0
+        name: iron-gallery-container-xfusion
+        resources: 
+          limits:
+            cpu: "50m"
+            memory: "100Mi"
+        volumeMounts:
+        - name: config 
+          mountPath: /usr/share/nginx/html/data
+        - name: images 
+          mountPath: /usr/share/nginx/html/uploads
+      volumes:
+      - name: config 
+        emptyDir: {}
+      - name: images
+        emptyDir: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    db: mariadb
+  name: iron-db-deployment-xfusion
+  namespace: iron-namespace-xfusion
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      db: mariadb
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        db: mariadb
+    spec:
+      containers:
+      - image: kodekloud/irondb:2.0
+        name: iron-db-container-xfusion
+        env:
+        - name: MYSQL_DATABASE
+          value: database_host
+        - name: MYSQL_ROOT_PASSWORD
+          value: Pass@123
+        - name: MYSQL_PASSWORD
+          value: Pass@123
+        - name: MYSQL_USER
+          value: dbuser
+        volumeMounts: 
+        - name: db 
+          mountPath: /var/lib/mysql
+      volumes: 
+      - name: db
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: iron-gallery-service-xfusion
+  namespace: iron-namespace-xfusion
+spec:
+  type: NodePort
+  selector:
+    run: iron-gallery
+  ports:
+  - port: 80
+    targetPort: 80
+    nodePort: 32678
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: iron-db-service-xfusion
+  namespace: iron-namespace-xfusion
+spec:
+  type: ClusterIP
+  selector:
+    db: mariadb
+  ports:
+  - port: 3306
+    targetPort: 3306
+---
+# Kubernetes3_Task10_Troubleshooting
+1.Change port and target port of service 
+2.change image name 
