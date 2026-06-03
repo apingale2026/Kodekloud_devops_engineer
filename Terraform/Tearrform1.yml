@@ -275,6 +275,70 @@ resource "aws_secretsmanager_secret_version" "datacenter_secret_value" {
   secret_string = jsonencode(var.example)
 }
 
+# Terraform1_Task25_Change_Instance_Type
+Change instance type from t2.micro to t2.nano in main.tf and save it
+terraform plan
+terraform apply 
+Verify instance status is running - aws ec2 describe-instance-status
+
+# Terraform1_Task26_Attach_Elastic_IP_Using_Terraform
+
+In main.tf in resource eip block add below line and save and terraform plan and apply
+     instance = aws_instance.ec2.id
+
+aws ec2 describe-instances --instance-ids i-a9ce6cd51fe4ea071 \
+  --query "Reservations[*].Instances[*].PublicIpAddress" --output text
+
+
+# Terraform1_Task27_Attach_IamUser_ToIAMPolicy
+Add below code in main.tf and use terraform plan and terraform apply 
+
+resource "aws_iam_policy_attachment" "test-attach" {
+  name       = "test-attachment"
+  users      = [aws_iam_user.user.name]
+  policy_arn = aws_iam_policy.policy.arn
+}
+
+# Terraform1_Task28_Enable_S3_Versioning
+Add below code in main.tf and use terraform plan and terraform apply 
+
+resource "aws_s3_bucket_versioning" "versioning_example" {
+  bucket = aws_s3_bucket.s3_ran_bucket.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+# Terraform1_Task29_CopyBucketToLocal_deleteBucket
+
+resource "null_resource" "s3_cleanup" {
+  provisioner "local-exec" {
+    command = "aws s3 cp s3://xfusion-bck-18407 /opt/s3-backup/ --recursive"
+  }
+
+  provisioner "local-exec" {
+    command = "aws s3 rb s3://xfusion-bck-18407 --force"
+  }
+}
+
+
+# Terraform1_Task30_Delete_EC2_Instance
+check resource - terraform state list
+use command - terraform destroy 
+
+
+# Terraform1_Task31_Delete_IAM_Group
+check resource - terraform state list
+use command - terraform destroy
+
+# Terraform1_Task32_Delete_IAM_Role
+check resource - terraform state list
+use command - terraform destroy
+
+# Terraform1_Task33_Delete_VPC
+check resource - terraform state list
+use command - terraform destroy
+
 
 
 
