@@ -339,6 +339,64 @@ use command - terraform destroy
 check resource - terraform state list
 use command - terraform destroy
 
+# Terraform1_Task34_Copy_data_From_local_to_S3
+
+Add below code in main.tf and use terraform init -upgrade, terraform plan and terraform apply 
+
+resource "null_resource" "s3_cleanup" {
+  provisioner "local-exec" {
+    command = "aws s3 cp /tmp/nautilus.txt  s3://nautilus-cp-2372"
+  }
+}
+
+# Terraform1_Task35_CreateVPC_addVariable
+main.tf
+resource "aws_vpc" "vpc" {
+  cidr_block       = "10.0.0.0/16"
+  instance_tenancy = "default"
+
+  tags = {
+    Name = "var.KKE_VPC"
+  }
+}
+variable.tf
+variable "KKE_VPC" {
+  type        = string
+  description = "Variable for VPC"
+}
+ terraform.tfvars 
+ KKE_VPC = nautilus_vpc
+
+# Terraform1_Task36_CreateSG_addVariable
+resource "aws_security_group" "sg" {
+  name        =  var.KKE_sg
+  description = "Security group for prod"
+  vpc_id      = aws_vpc.main.id
+
+  tags = {
+    Name = var.KKE_sg
+  }
+}
+resource "aws_vpc" "main" {
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_support   = true
+  enable_dns_hostnames = true
+
+  tags = {
+    Name = "main-vpc"
+  }
+}
+variables.tf
+variable "KKE_sg" {
+  type        = string
+  description = "Variable for SG"
+}
+terraform.tfvars 
+KKE_sg = devops-sg 
+
+
+
+
 
 
 
