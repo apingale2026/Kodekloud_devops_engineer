@@ -1,0 +1,339 @@
+# Terraform Level2_Task1
+variables.tf
+```bash
+variable "KKE_VPC_NAME" {
+  type        = string
+  description = "Name of the VPC"
+}
+
+variable "KKE_SUBNET_NAME" {
+  type        = string
+  description = "Name of the Subnet"
+}
+```
+terraform.tfvars
+```bash
+KKE_VPC_NAME    = "devops-vpc"
+KKE_SUBNET_NAME = "devops-subnet"
+```
+main.tf 
+```bash
+resource "aws_vpc" "devops_vpc" {
+  cidr_block = "10.0.0.0/16"
+  
+  tags = {
+    Name = var.KKE_VPC_NAME
+  }
+}
+
+resource "aws_subnet" "devops_subnet" {
+  vpc_id            = aws_vpc.devops_vpc.id
+  cidr_block        = "10.0.1.0/24"
+  availability_zone = "us-east-1a"
+  
+  depends_on = [
+    aws_vpc.datacenter_vpc
+  ]
+  
+  tags = {
+    Name = var.KKE_SUBNET_NAME
+  }
+}
+```
+outputs.tf 
+```bash
+output "kke_vpc_name" {
+  value = aws_vpc.devops_vpc.tags["Name"]
+}
+
+output "kke_subnet_name" {
+  value = aws_subnet.devops_subnet.tags["Name"]
+}
+```
+
+
+# Terraform Level2_Task2
+variables.tf
+
+```bash
+variable "KKE_VPC_CIDR" {
+    type = string 
+    description = "vpc_cidr"
+    default = "10.0.0.0/16"
+}
+variable "KKE_SUBNET_CIDR" {
+    type = string 
+    description = "subnet_cidr"
+    default = "10.0.1.0/24"
+}
+```
+main.tf
+```bash
+resource "aws_vpc" "main" {
+  cidr_block       = var.KKE_VPC_CIDR
+  instance_tenancy = "default"
+
+  tags = {
+    Name = "xfusion-priv-vpc"
+  }
+}
+
+resource "aws_subnet" "main" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = var.KKE_SUBNET_CIDR
+  map_public_ip_on_launch = false
+
+
+  tags = {
+    Name = "xfusion-priv-subnet"
+  }
+}
+
+resource "aws_instance" "example" {
+  ami                    = "ami-0c02fb55956c7d316"
+  instance_type          = "t2.micro"
+  subnet_id              = aws_subnet.main.id
+  vpc_security_group_ids = [aws_security_group.allow_vpc.id]
+  tags = {
+    Name = "xfusion-priv-ec2"
+  }
+}
+resource "aws_security_group" "allow_vpc" {
+  name        = "allow_vpc"
+  description = "Allow inbound traffic within VPC and all outbound traffic"
+  vpc_id      = aws_vpc.main.id
+
+  tags = {
+    Name = "allow_vpc"
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+
+  }
+  ingress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = [var.KKE_VPC_CIDR]
+
+  }
+}
+```
+outputs.tf
+```bash
+output "KKE_vpc_name" {
+    value = aws_vpc.main.tags["Name"]
+}
+output "KKE_subnet_name" {
+    value = aws_subnet.main.tags["Name"]
+}
+output "KKE_ec2_private" {
+    value = aws_instance.example.tags["Name"]
+}
+```
+# Terraform Level2_Task3
+```bash
+terraform plan --replace="aws_instance.web_server"
+terraform apply --replace="aws_instance.web_server"
+```
+
+# Terraform Level2_Task4
+variables.tf
+```bash
+variable "KKE_INSTANCE_COUNT" {
+    type = number
+    description = "count of instance"
+}
+
+variable "KKE_INSTANCE_TYPE" {
+    type = string 
+    description = "instance type"
+}
+variable "KKE_KEY_NAME" {
+    type = string 
+    description = "name of key"
+}
+variable "KKE_INSTANCE_PREFIX" {
+    type = string
+    description = "instane name"
+}
+```
+terraform.tfvars
+```bash
+KKE_INSTANCE_COUNT = 3
+KKE_INSTANCE_TYPE = "t2.micro"
+KKE_KEY_NAME = "nautilus-key"
+KKE_INSTANCE_PREFIX = "nautilus-instance"
+```
+locals.tf
+```bash
+data "aws_ami" "example" {
+  most_recent      = true
+  owners           = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
+  }
+  
+}
+locals {
+    AMI_ID = data.aws_ami.example.id
+  }
+```
+main.tf
+```bash
+resource "aws_instance" "example" {
+  ami                    = local.AMI_ID
+  instance_type          = var.KKE_INSTANCE_TYPE
+  count = var.KKE_INSTANCE_COUNT
+  tags = {
+    Name = "${var.KKE_INSTANCE_PREFIX}-${count.index+1}"
+  }
+}
+```
+outputs.tf
+```bash
+output "kke_instance_names" {
+    value = aws_instance.example[*].tags["Name"]
+}
+```
+# Terraform Level2_Task5
+```bash
+resource "aws_instance" "example" {
+  ami           = "ami-0c02fb55956c7d316"
+  instance_type = "t2.micro"
+
+  tags = {
+    Name = "datacenter-ec2"
+  }
+}
+
+resource "aws_eip" "eip" {
+  instance = aws_instance.example.id
+  tags = {
+    Name = "datacenter-eip"
+  }
+}
+
+```
+```bash
+output "KKE_instance_name" {
+    value = aws_instance.example.tags["Name"]
+}
+output "KKE_eip" {
+    value = aws_eip.eip.tags["Name"]
+}
+```
+
+# Terraform Level2_Task6
+main.tf 
+```bash 
+# Provision EC2 instance
+resource "aws_instance" "ec2" {
+  ami           = "ami-0c101f26f147fa7fd"
+  instance_type = "t2.micro"
+  vpc_security_group_ids = [
+    "sg-f23898a9bfc47bb60"
+  ]
+
+  tags = {
+    Name = "nautilus-ec2"
+  }
+}
+
+resource "aws_ami_from_instance" "example" {
+  name               = "nautilus-ec2-ami"
+  source_instance_id = aws_instance.ec2.id
+  depends_on         = [aws_instance.ec2]
+}
+
+resource "aws_instance" "web" {
+  ami           = aws_ami_from_instance.example.id
+  instance_type = "t2.micro"
+  vpc_security_group_ids = [
+    "sg-f23898a9bfc47bb60"
+  ]
+
+  tags = {
+    Name = "nautilus-ec2-new"
+  }
+  depends_on = [aws_ami_from_instance.example]
+}
+```
+outputs.tf 
+```bash 
+output "KKE_ami_id" {
+  value = aws_ami_from_instance.example.id
+}
+
+output "KKE_new_instance_id" {
+  value = aws_instance.web.id
+}
+```
+# Terraform Level2_Task7
+The monitoring team wants to improve observability into the streaming infrastructure. Your task is to implement a solution using Amazon Kinesis and CloudWatch. The team wants to ensure that if write throughput exceeds provisioned limits, an alert is triggered immediately.
+```bash 
+output "kke_kinesis_stream_name" {
+  value = aws_kinesis_stream.test_stream.name
+}
+output "kke_kinesis_alarm_name" {
+  value = aws_cloudwatch_metric_alarm.foobar.alarm_name
+}
+```
+```bash 
+resource "aws_kinesis_stream" "test_stream" {
+  name             = "nautilus-kinesis-stream"
+  shard_count      = 1
+  retention_period = 24
+
+  shard_level_metrics = [
+    "IncomingBytes",
+    "OutgoingBytes",
+    "WriteProvisionedThroughputExceeded",
+    "ReadProvisionedThroughputExceeded"
+  ]
+
+
+
+  tags = {
+    Environment = "test"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "foobar" {
+  alarm_name          = "nautilus-kinesis-alarm"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = "1"
+  metric_name         = "WriteProvisionedThroughputExceeded"
+  namespace           = "AWS/Kinesis"
+  period              = "60"
+  statistic           = "Sum"
+  threshold           = "1"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    StreamName = aws_kinesis_stream.test_stream.name
+  }
+
+}
+
+```
+
+# Terraform Level2_Task8
+
+# Terraform Level2_Task9
+# Terraform Level2_Task10
+# Terraform Level2_Task11
+# Terraform Level2_Task12
+# Terraform Level2_Task13
+# Terraform Level2_Task14
+# Terraform Level2_Task15
+# Terraform Level2_Task16
+# Terraform Level2_Task17
+# Terraform Level2_Task18
+# Terraform Level2_Task19
+# Terraform Level2_Task20
