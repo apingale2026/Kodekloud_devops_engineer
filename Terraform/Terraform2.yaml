@@ -324,16 +324,529 @@ resource "aws_cloudwatch_metric_alarm" "foobar" {
 ```
 
 # Terraform Level2_Task8
+##Sync Data to S3 Bucket with Terraform
+main.tf
+```bash
+resource "aws_s3_bucket" "wordpress_bucket" {
+  bucket = "nautilus-s3-30530613"
+}
+
+resource "aws_s3_bucket_acl" "wordpress_bucket_acl" {
+  bucket = aws_s3_bucket.wordpress_bucket.id
+  acl    = "private"
+}
+
+resource "aws_s3_bucket" "wordpress_bucket_new" {
+  bucket = var.KKE_BUCKET
+}
+
+resource "aws_s3_bucket_acl" "wordpress_bucket_new_acl" {
+  bucket = aws_s3_bucket.wordpress_bucket_new.id
+  acl    = "private"
+}
+
+resource "null_resource" "local_provisioner_old_new" {
+  provisioner "local-exec" {
+    command = "aws --endpoint-url=http://aws:4566 s3 sync s3://nautilus-s3-30530613 s3://${var.KKE_BUCKET}"
+  }
+  depends_on = [
+    aws_s3_bucket.wordpress_bucket_new,
+    aws_s3_bucket_acl.wordpress_bucket_new_acl
+  ]
+}
+
+```
+variable.tf
+```bash
+variable "KKE_BUCKET" {
+  type        = string
+  description = "new bucket name"
+  default     = "nautilus-sync-30530613"
+}
+```
+outputs.tf
+```bash
+output "new_kke_bucket_name" {
+  value = aws_s3_bucket.wordpress_bucket_new.bucket
+}
+
+output "new_kke_bucket_acl" {
+  value = aws_s3_bucket_acl.wordpress_bucket_new_acl.acl
+}
+```
+
+```bash 
+aws --endpoint-url=http://aws:4566 s3 ls s3://nautilus-s3-30530613 --recursive
+aws --endpoint-url=http://aws:4566 s3 ls s3://nautilus-sync-30530613 --recursive
+```
+
 
 # Terraform Level2_Task9
+##Prevent S3 Bucket Deletion via Terraform
+```bash
+resource "aws_s3_bucket" "s3_bucket" {
+  bucket = var.KKE_BUCKET_NAME
+  lifecycle {
+    prevent_destroy = true
+  }
+} 
+```
 # Terraform Level2_Task10
+##Grant EC2 Access to S3 Bucket Using Terraform
+data.aws_ami.amazon_linux_2
+aws_iam_instance_profile.data_profile
+aws_iam_policy.policy_p1
+aws_iam_role.data_role
+aws_iam_role_policy_attachment.data_attach_policy
+aws_instance.data-ec2
+aws_s3_bucket.data_s3
+```bash 
+resource "aws_instance" "data-ec2" {
+  ami           = data.aws_ami.amazon_linux_2.id
+  instance_type = "t3.micro"
+  iam_instance_profile = aws_iam_instance_profile.data_profile.name
+  tags = {
+    Name = "datacenter-ec2"
+  }
+}
+resource "aws_s3_bucket" "data_s3" {
+  bucket = var.KKE_BUCKET_NAME
+}
+
+resource "aws_iam_policy" "policy_p1" {
+  name = var.KKE_POLICY_NAME
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action   = ["s3:PutObject"]
+        Effect   = "Allow"
+        Resource = "${aws_s3_bucket.data_s3.arn}/*"
+      },
+    ]
+  })
+}
+
+resource "aws_iam_role" "data_role" {
+  name = var.KKE_ROLE_NAME
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = { Service = "ec2.amazonaws.com" }
+    }]
+  })
+}
+
+resource "aws_iam_instance_profile" "data_profile" {
+  name = "instance_profile"
+  role = aws_iam_role.data_role.name
+}
+
+resource "aws_iam_role_policy_attachment" "data_attach_policy" {
+  role       = aws_iam_role.data_role.name
+  policy_arn = aws_iam_policy.policy_p1.arn
+}
+```
+
 # Terraform Level2_Task11
+Implement S3 Lifecycle Management Policy Using Terraform
+```bash 
+resource "aws_s3_bucket" "buck_1" {
+  bucket = "nautilus-lifecycle-253932233"
+}
+resource "aws_s3_bucket_versioning" "versioning_bucket" {
+  bucket = aws_s3_bucket.buck_1.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "bucket-config" {
+  bucket = aws_s3_bucket.buck_1.bucket
+
+  rule {
+    id     = "nautilus-lifecycle-rule"
+    status = "Enabled"
+    filter {
+        prefix = ""
+    }
+    expiration {
+      days = 365
+    }
+
+    transition {
+      days          = 30
+      storage_class = "STANDARD_IA"
+    }
+
+  }
+}
+```
 # Terraform Level2_Task12
+##Integrate SNS with SQS for Messaging Using Terraform
+main.tf
+```bash 
+resource "aws_sns_topic" "sns_topic" {
+  name = "xfusion-sns-topic"
+}
+resource "aws_sqs_queue" "sqs_queue" {
+  name = "xfusion-sqs-queue"
+}
+
+resource "aws_sns_topic_subscription" "user_updates_sqs_target" {
+  topic_arn = aws_sns_topic.sns_topic.arn
+  protocol  = "sqs"
+  endpoint  = aws_sqs_queue.sqs_queue.arn
+}
+```
 # Terraform Level2_Task13
+##Attach IAM Role with Inline Policy Using Terraform
+```bash 
+resource "aws_iam_role" "data_role" {
+  name = var.KKE_ROLE_NAME
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_policy" "policy_p1" {
+  name = var.KKE_POLICY_NAME
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action   = ["ec2:DescribeInstances"]
+        Effect   = "Allow"
+        Resource = "*"
+      },
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "attach_policy" {
+  role       = aws_iam_role.data_role.name
+  policy_arn = aws_iam_policy.policy_p1.arn
+}
+```
 # Terraform Level2_Task14
+##Provision IAM User with Terraform
+```bash 
+resource "aws_iam_user" "iam_user" {
+  name = var.KKE_USER_NAME
+
+  provisioner "local-exec" {
+    command = "echo 'KKE iamuser_kareem has been created successfully!' > /home/bob/terraform/KKE_user_created.log"
+  }
+}
+```
 # Terraform Level2_Task15
+##Attach IAM Policy for DynamoDB Access Using Terraform
+```bash 
+resource "aws_dynamodb_table" "example" {
+  name     = var.KKE_TABLE_NAME
+  hash_key = "un_no"
+  billing_mode = "PAY_PER_REQUEST"
+  attribute {
+    name = "un_no"
+    type = "S"
+  }
+}
+
+resource "aws_iam_role" "test_role" {
+  name = var.KKE_ROLE_NAME
+
+  assume_role_policy = jsonencode({
+    "Version" : "2012-10-17",
+    "Statement" : [
+      {
+        "Action" : "sts:AssumeRole",
+        "Principal" : {
+          "Service" : "ec2.amazonaws.com"
+        },
+        "Effect" : "Allow",
+        "Sid" : ""
+      }
+    ]
+  })
+}
+
+resource "aws_iam_policy" "policy" {
+  name = var.KKE_POLICY_NAME
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:Query",
+          "dynamodb:Scan"
+        ]
+        Effect   = "Allow"
+        Resource = aws_dynamodb_table.example.arn
+      },
+    ]
+  })
+}
+resource "aws_iam_role_policy_attachment" "test-attach" {
+  role       = aws_iam_role.test_role.name
+  policy_arn = aws_iam_policy.policy.arn
+}
+
+```
 # Terraform Level2_Task16
+##Send Notifications from IAM Events to SNS Using Terraform
+main.tf 
+```bash 
+resource "aws_sns_topic" "sns_t1" {
+  name = local.KKE_SNS_TOPIC_NAME
+}
+
+resource "aws_iam_role" "test_role" {
+  name = local.KKE_ROLE_NAME
+
+  assume_role_policy = jsonencode({
+    "Version" : "2012-10-17",
+    "Statement" : [
+      {
+        "Action" : "sts:AssumeRole",
+        "Principal" : {
+          "Service" : "ec2.amazonaws.com"
+        },
+        "Effect" : "Allow",
+        "Sid" : ""
+      }
+    ]
+  })
+}
+
+resource "aws_iam_policy" "policy" {
+  name = local.KKE_POLICY_NAME
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = [
+          "sns:Publish"
+        ]
+        Effect   = "Allow"
+        Resource = aws_sns_topic.sns_t1.arn
+      },
+    ]
+  })
+}
+resource "aws_iam_role_policy_attachment" "test-attach" {
+  role       = aws_iam_role.test_role.name
+  policy_arn = aws_iam_policy.policy.arn
+}
+```
+locals.tf 
+```bash
+locals {
+  KKE_SNS_TOPIC_NAME = "devops-sns-topic"
+  KKE_ROLE_NAME      = "devops-sns-role"
+  KKE_POLICY_NAME    = "devops-sns-policy"
+}
+```
 # Terraform Level2_Task17
+##Access Secrets Manager with IAM Role Using Terraform
+main.tf 
+```bash
+resource "aws_secretsmanager_secret" "example" {
+  name = var.KKE_SECRET_NAME
+}
+
+resource "aws_secretsmanager_secret_version" "example" {
+  secret_id     = aws_secretsmanager_secret.example.id
+  secret_string = var.KKE_SECRET_VALUE
+}
+
+resource "aws_iam_role" "test_role" {
+  name = var.KKE_ROLE_NAME
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Sid    = ""
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+      },
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "test_policy" {
+  name = var.KKE_POLICY_NAME
+  role = aws_iam_role.test_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = [
+          "secretsmanager:GetSecretValue",
+        ]
+        Effect   = "Allow"
+        Resource = aws_secretsmanager_secret.example.arn
+      },
+    ]
+  })
+}
+```
+outputs.tf
+```bash
+output "KKE_secret_name" {
+  value = aws_secretsmanager_secret.example.name
+}
+output "KKE_role_name" {
+  value = aws_iam_role.test_role.name
+}
+output "KKE_POLICY_NAME" {
+  value = aws_iam_role_policy.test_policy.name
+}
+```
+```bash 
+variable "KKE_SECRET_NAME" {
+  type        = string
+  description = "secret name"
+}
+variable "KKE_SECRET_VALUE" {
+  type        = string
+  description = "secret value"
+}
+variable "KKE_ROLE_NAME" {
+  type        = string
+  description = "role name"
+}
+variable "KKE_POLICY_NAME" {
+  type        = string
+  description = "policy name"
+}
+
+```
 # Terraform Level2_Task18
+
+main.tf
+```bash 
+resource "aws_sns_topic" "sns_topic" {
+  name = "datacenter-sns-topic"
+}
+
+resource "aws_instance" "example" {
+  ami           = "ami-0c02fb55956c7d316"
+  instance_type = "t3.micro"
+
+  tags = {
+    Name = "datacenter-ec2"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "foobar" {
+  alarm_name                = "datacenter-alarm"
+  comparison_operator       = "GreaterThanOrEqualToThreshold"
+  evaluation_periods        = 1
+  metric_name               = "CPUUtilization"
+  namespace                 = "AWS/EC2"
+  period                    = 300
+  statistic                 = "Average"
+  threshold                 = 90
+  alarm_description         = "This metric monitors ec2 cpu utilization"
+  dimensions = {
+    InstanceId = aws_instance.example.id
+  }
+  alarm_actions = [aws_sns_topic.sns_topic.arn]
+}
+```
+outputs.tf 
+```bash
+output "KKE_instance_name" {
+    value = aws_instance.example.tags["Name"]
+}
+output "KKE_alarm_name" {
+    value = aws_cloudwatch_metric_alarm.foobar.alarm_name
+}
+```
+```bash 
+
+Common AWS Namespaces
+
+AWS reserves namespaces using the AWS/Service naming convention. If you were to change what you are monitoring, you would swap out the namespace:
+
+AWS Service	Namespace Value
+Amazon EC2 (Virtual Servers)	AWS/EC2
+Amazon RDS (Databases)	AWS/RDS
+AWS Lambda (Serverless Functions)	AWS/Lambda
+Amazon S3 (Storage)	AWS/S3
+```
+
 # Terraform Level2_Task19
+main.tf
+```bash 
+resource "aws_sns_topic" "sns_topic" {
+  name = "devops-sns-topic"
+}
+
+
+resource "aws_cloudwatch_metric_alarm" "foobar" {
+  alarm_name                = "devops-cpu-alarm"
+  comparison_operator       = "GreaterThanThreshold"
+  evaluation_periods        = 1
+  metric_name               = "CPUUtilization"
+  namespace                 = "AWS/EC2"
+  period                    = 300
+  statistic                 = "Average"
+  threshold                 = 80
+  alarm_description         = "This metric monitors ec2 cpu utilization"
+  
+  alarm_actions = [aws_sns_topic.sns_topic.arn]
+}
+```
+outputs.tf 
+```bash 
+output "KKE_sns_topic_name" {
+    value = aws_sns_topic.sns_topic.name
+}
+output "KKE_cloudwatch_alarm_name" {
+    value = aws_cloudwatch_metric_alarm.foobar.alarm_name
+}
+```
+
 # Terraform Level2_Task20
+main.tf
+```bash 
+resource "aws_cloudformation_stack" "dynamo" {
+  name = "nautilus-dynamodb-stack"
+
+ template_body = local.cf_template_body
+ 
+ lifecycle {
+      ignore_changes = [
+         parameters
+      ]  
+   }
+}
+```
+outputs.tf 
+```bash 
+output "KKE_stack_name" {
+    value = aws_cloudformation_stack.dynamo.name
+}
+```
+
